@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { STEP, ANCHORS, ROOFS, CELLS, createState, begin, jump, tether, simulate, candidateAnchor, roofAt, score } from './stormline-physics.mjs';
 import './stormline.css';
 import { buildStormCity, createCourier, animateCourier, batchStaticMeshes } from './stormline-art.js';
+import { loadCourierAsset, installCourierAsset } from './stormline-model.js';
 
 const C = { sky: 0x1b3944, fog: 0x315454, roof: 0x66817c, wall: 0x30494b, dark: 0x172f35, acid: 0xd3ff7a, orange: 0xff9463, paper: 0xfaf6e8, crane: 0xd5a058 };
 const KEY = 'monsoon-stormline-best-v1';
@@ -86,6 +87,14 @@ export class StormlineGame {
     const fill = new THREE.DirectionalLight(0x80c0cc,this.polished?1.05:1.3); fill.position.set(40,25,-30); this.scene.add(fill);
     this.buildWorld(); this.player = this.courier(); this.scene.add(this.player);
     this.ghost = this.courier(true); this.scene.add(this.ghost); this.ghost.visible = false;
+    if(this.polished) {
+      this.root.dataset.courierModel='loading';
+      loadCourierAsset().then(asset=>{
+        installCourierAsset(this.player,asset);
+        installCourierAsset(this.ghost,asset,true);
+        this.root.dataset.courierModel='blender';
+      }).catch(()=>{this.root.dataset.courierModel='fallback';});
+    } else this.root.dataset.courierModel='procedural';
     this.rope = this.bar(new THREE.Vector3(),new THREE.Vector3(0,1,0),.065,glow(C.acid)); this.rope.visible = false;
     this.camera.position.set(34,29,-31); this.look = new THREE.Vector3(0,17,37); this.camera.lookAt(this.look);
     this.setupInput(); this.showMenu('ready'); this.updateUI(); this.updateSoundButton();

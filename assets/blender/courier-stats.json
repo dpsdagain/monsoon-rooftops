@@ -1,0 +1,9 @@
+{
+  "blender": "5.2.1 LTS",
+  "triangles": 5534,
+  "mesh_objects": 21,
+  "joints": 21,
+  "bytes": 226748,
+  "rig": "named rigid object pivots; animated in the game",
+  "textures": 0
+}

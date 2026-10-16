@@ -45,3 +45,9 @@ The courier has a cream raincoat, hood, orange scarf, delivery backpack and arti
 Static architecture uses instancing; repeated crane and tank parts are batched after construction. The preview recorded 394 static draw calls removed and around 60 fps on this desktop browser. These are sample observations, not an Android performance guarantee. No new dependencies were added. Movement rules, level collision, scoring and stored ghost data are unchanged.
 
 Verification includes production build, the existing 79 classic checks and 12 Stormline simulation checks, a complete four-grapple train landing in-browser, retry/pause and saved ghost, plus a 390 x 844 layout and holding/releasing the on-screen grapple button. Physical Android testing and an APK remain future work.
+
+## Blender courier
+
+The default city mode now loads an original Blender courier from `public/models/courier/courier.glb`. Editable native source and its reproducible generator are in `assets/blender/`. The model has 5,534 triangles, 21 articulated pivots, a hollow hood, raincoat details, delivery bag, boots, gloves and a segmented orange scarf. The 226,748-byte GLB has no external texture dependencies.
+
+The existing runtime animation drives its named joints, including the hand used as the visible grapple origin. This is an articulated object rig, not a deforming armature or baked animation set. Loading and validation failures retain the procedural model. Classic mode and `?art=plain` keep their existing characters. Run `npm run test:assets` for the binary, rig, ghost, fallback and full animated-route checks. See `assets/blender/README.md` for the export workflow and source details.
