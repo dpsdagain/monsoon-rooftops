@@ -11,7 +11,9 @@ A fast-paced, atmospheric 3D rooftop runner built with **Three.js** and **JavaSc
 - **Rooftop Leaps:** Jump over open gaps between buildings.
 - **5 Energy Cells (⚡):** Collect all 5 floating energy cells across the course. Each can only be collected once per run.
 - **Reach Helipad 01:** Successfully traverse the 975-meter handcrafted course (approx. 48–50 seconds) to complete the level.
-- **Avoid Falling:** Falling into the monsoon mist triggers Game Over with an immediate restart option.
+- **Razor landings:** The gold band on the lip of each roof is the scoring zone. Land inside it and the run starts paying. A safe landing deeper on the roof still counts, it just scores less. Every gap you clear raises your flow, so later razors are worth more.
+- **Courier score:** Distance, cells, and razor landings add up to one number. Clear time barely moves, because a clean run never changes speed. The score is the line other people chase.
+- **Avoid Falling:** Falling into the monsoon mist triggers Game Over. The fall still has a score, and you can post it.
 
 ### Controls
 | Platform | Action | Control |
@@ -26,6 +28,16 @@ A fast-paced, atmospheric 3D rooftop runner built with **Three.js** and **JavaSc
 > - **Coyote Time (140ms):** You can still jump for a fraction of a second after stepping off a rooftop ledge.
 > - **Jump Buffer (140ms):** Tapping jump right before landing queues the jump to fire immediately upon touchdown.
 > - **Reliable Landing:** Continuous descending collision detection ensures your courier never clips or tunnels through rooftops.
+
+---
+
+## Posting a line on X
+
+Finish a run, or eat a fall. **Post on X** opens a post with your score and a link back to this game. Anyone who opens that link sees your line on the start screen and a live ahead/behind counter while they run. **Save card** downloads a picture you can attach, because the composer cannot take the image by itself.
+
+The link uses the address the game is open on. A `localhost` link only works on your machine. Host the site, then post from that address, so other people can open your line.
+
+A shared link looks like `?line=18420.5.9.S` (score, cells, razors, rank). `SP` in that last slot means rank S+.
 
 ---
 

@@ -65,6 +65,14 @@ export class Environment {
       color: CONFIG.COLORS.ROOF_EDGE_AMBER
     });
 
+    // Decorative lip. Collision still reads PLATFORMS_DATA, not this mesh.
+    const razorMat = new THREE.MeshBasicMaterial({
+      color: 0xffc14d,
+      transparent: true,
+      opacity: 0.55,
+      depthWrite: false,
+    });
+
     PLATFORMS_DATA.forEach((plat) => {
       const length = plat.zEnd - plat.zStart;
       const centerZ = plat.zStart + length * 0.5;
@@ -106,6 +114,15 @@ export class Environment {
       const endCross = new THREE.Mesh(crossGeo, edgeMat);
       endCross.position.set(plat.x, plat.topY + 0.08, plat.zEnd - 0.2);
       group.add(endCross);
+
+      const razorDepth = Math.min(CONFIG.RAZOR_MARGIN, Math.max(0, length - 0.6));
+      if (razorDepth > 0.4) {
+        const razorGeo = new THREE.BoxGeometry(plat.width - 0.55, 0.05, razorDepth);
+        const razorBand = new THREE.Mesh(razorGeo, razorMat);
+        razorBand.position.set(plat.x, plat.topY + 0.06, plat.zStart + razorDepth * 0.5);
+        razorBand.name = 'razor-lip';
+        group.add(razorBand);
+      }
 
       // Center Dash Guide Line along runway
       const dashCount = Math.floor(length / 8.0);

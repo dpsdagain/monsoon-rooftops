@@ -16,6 +16,9 @@ export const CONFIG = {
   LEVEL_LENGTH: 1000.0, // total track length
   FINISH_Z: 975.0, // Z coordinate that triggers victory
   TOTAL_CELLS: 5,
+  // Meters past a roof's leading edge that still count as a razor landing.
+  // Visual lip mesh and score use this same distance.
+  RAZOR_MARGIN: 3.0,
 
   // Camera Settings
   CAMERA_OFFSET: { x: 0, y: 4.5, z: -8.5 },

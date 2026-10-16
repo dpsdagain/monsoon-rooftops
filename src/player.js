@@ -109,6 +109,7 @@ export class Player {
     this.coyoteTimer = 0;
     this.jumpBufferTimer = 0;
     this.currentPlatform = null;
+    this.takeoffPlatformId = null;
     this.runAnimTime = 0;
 
     this.updateMeshTransform();
@@ -138,9 +139,11 @@ export class Player {
     sound.playJump();
   }
 
-  update(dt, platforms, onFall) {
+  update(dt, platforms, onFall, onGapLand) {
     // Clamp frame delta for numerical stability
     dt = Math.min(dt, CONFIG.MAX_FRAME_DELTA);
+    const wasGrounded = this.isGrounded;
+    let gapLanding = null;
 
     // Update jump buffer timer
     if (this.jumpBufferTimer > 0) {
@@ -221,6 +224,18 @@ export class Player {
       }
     }
 
+    if (landed && this.currentPlatform) {
+      const platform = this.currentPlatform;
+      const fromId = this.takeoffPlatformId;
+      if (!wasGrounded && fromId != null && platform.id !== fromId) {
+        gapLanding = {
+          platformId: platform.id,
+          margin: this.z - platform.zStart,
+        };
+      }
+      this.takeoffPlatformId = platform.id;
+    }
+
     if (!landed) {
       if (this.isGrounded) {
         // Player stepped off an edge
@@ -230,6 +245,9 @@ export class Player {
     }
 
     this.y = candidateY;
+
+    // Count the lip landing before a fall ends the run, so the score includes it.
+    if (gapLanding && onGapLand) onGapLand(gapLanding);
 
     // Check Fall / Game Over
     if (this.y < CONFIG.FALL_LIMIT_Y) {

@@ -4,7 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Monsoon Rooftops | Neo-Mumbai 2088</title>
-  <meta name="description" content="A 3D rooftop runner through the rain-drenched cyber skyline of futuristic Mumbai.">
+  <meta name="description" content="Sprint the rain-slick rooftops of Neo-Mumbai. Cut the gold lips, post your line, and dare someone on X to beat it.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Monsoon Rooftops | Neo-Mumbai 2088">
+  <meta name="twitter:description" content="Cut the gold roof lips, post your score, and dare someone to beat the line.">
+  <meta property="og:title" content="Monsoon Rooftops | Neo-Mumbai 2088">
+  <meta property="og:description" content="A rooftop runner through monsoon Neo-Mumbai. Post your line and let someone chase it.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="/screenshot.png">
   <link rel="stylesheet" href="/src/style.css">
 </head>
 <body>
@@ -20,6 +27,7 @@
         <div class="hud-progress-track">
           <div id="hud-progress-fill"></div>
         </div>
+        <div class="score-line"><span>SCORE</span> <strong id="hud-score">0</strong></div>
       </div>
 
       <!-- Energy Cells Widget -->
@@ -32,6 +40,7 @@
           <div class="cell-node" id="cell-4" title="Cell 4"></div>
           <div class="cell-node" id="cell-5" title="Cell 5"></div>
         </div>
+        <div class="flow-pill" id="hud-flow">x0 · 0 RAZORS</div>
       </div>
 
       <!-- Live Timer & Controls -->
@@ -44,6 +53,9 @@
         <button id="btn-pause" class="hud-btn" title="Pause Game">⏸</button>
       </div>
     </div>
+
+    <div id="hud-rival" class="rival-pill hidden"></div>
+    <div id="skill-popup" class="skill-popup" aria-live="polite"></div>
 
     <!-- On-Screen Mobile Jump Button -->
     <div class="hud-bottom">
@@ -58,10 +70,12 @@
       <h1 class="modal-title">MONSOON ROOFTOPS</h1>
       <div class="modal-subtitle">मानसूनी छतें • CYBER RUNNER</div>
       <p class="modal-desc">
-        Sprint across the rain-swept rooftops of futuristic Mumbai.
-        Time your jumps across building gaps, collect all <strong>5 Energy Cells</strong>,
-        and reach Helipad 01 before your power runs out.
+        Sprint the rain-slick roofs, grab all <strong>5 Energy Cells</strong>, and reach Helipad 01.
+        The gold band on each lip is a razor. Land in it. That score is the line you post.
       </p>
+
+      <div id="challenge-line" class="challenge-line hidden"></div>
+      <div id="best-line" class="best-line">NO LINE YET · land in the gold lip to set one</div>
 
       <div class="controls-guide">
         <div class="guide-item">
@@ -96,6 +110,12 @@
       <h2 class="modal-title">LOST IN THE MONSOON</h2>
       <p class="modal-desc">You slipped off the rooftop into the neon mist.</p>
 
+      <div class="score-hero">
+        <div class="hud-label">Courier Score</div>
+        <div class="score-val" id="fail-score">0</div>
+        <div class="score-note" id="fail-note"></div>
+      </div>
+
       <div class="stats-grid">
         <div class="stat-box">
           <div class="stat-label">Distance</div>
@@ -106,12 +126,17 @@
           <div class="stat-val" id="fail-cells">0 / 5</div>
         </div>
         <div class="stat-box">
-          <div class="stat-label">Time</div>
-          <div class="stat-val" id="fail-time">0.0s</div>
+          <div class="stat-label">Razors</div>
+          <div class="stat-val" id="fail-razors">0</div>
         </div>
       </div>
 
-      <button id="btn-restart-fail" class="btn-primary">TRY AGAIN</button>
+      <button id="btn-restart-fail" class="btn-primary" type="button">TRY AGAIN</button>
+      <div class="share-row">
+        <button id="btn-share-fail" class="btn-x" type="button">POST ON X</button>
+        <button id="btn-card-fail" class="btn-secondary" type="button">SAVE CARD</button>
+      </div>
+      <p id="fail-status" class="share-status"></p>
     </div>
   </div>
 
@@ -123,7 +148,13 @@
       <div class="modal-subtitle">HELIPAD 01 REACHED SAFELY</div>
       <p class="modal-desc">You conquered the storm-swept skyline of Neo-Mumbai.</p>
 
-      <div id="win-rank" class="rank-badge rank-s">RANK: S (OVERCHARGED COURIER)</div>
+      <div id="win-rank" class="rank-badge rank-s">RANK S · OVERCHARGED COURIER</div>
+
+      <div class="score-hero">
+        <div class="hud-label">Courier Score</div>
+        <div class="score-val" id="win-score">0</div>
+        <div class="score-note" id="win-note"></div>
+      </div>
 
       <div class="stats-grid">
         <div class="stat-box">
@@ -135,12 +166,17 @@
           <div class="stat-val" id="win-cells">5 / 5</div>
         </div>
         <div class="stat-box">
-          <div class="stat-label">Total Distance</div>
-          <div class="stat-val" id="win-dist">975m</div>
+          <div class="stat-label">Razors</div>
+          <div class="stat-val" id="win-razors">0</div>
         </div>
       </div>
 
-      <button id="btn-restart-win" class="btn-primary">PLAY AGAIN</button>
+      <button id="btn-restart-win" class="btn-primary" type="button">PLAY AGAIN</button>
+      <div class="share-row">
+        <button id="btn-share-win" class="btn-x" type="button">POST ON X</button>
+        <button id="btn-card-win" class="btn-secondary" type="button">SAVE CARD</button>
+      </div>
+      <p id="win-status" class="share-status"></p>
     </div>
   </div>
 

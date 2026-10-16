@@ -1,4 +1,6 @@
 import { sound } from './audio.js';
+import { describeBest, describeLine, formatScore, resultNote } from './score.js';
+import { downloadShareCard, initialShareStatus, shareRun } from './share.js';
 
 export class UIManager {
   constructor(callbacks) {
@@ -24,6 +26,16 @@ export class UIManager {
     this.btnMute = document.getElementById('btn-mute');
     this.btnPause = document.getElementById('btn-pause');
     this.btnMobileJump = document.getElementById('btn-mobile-jump');
+    this.hudScore = document.getElementById('hud-score');
+    this.hudFlow = document.getElementById('hud-flow');
+    this.hudRival = document.getElementById('hud-rival');
+    this.skillPopup = document.getElementById('skill-popup');
+    this.bestLine = document.getElementById('best-line');
+    this.challengeLine = document.getElementById('challenge-line');
+    this.btnStart = document.getElementById('btn-start');
+    this.lastResult = null;
+    this.best = null;
+    this.challenge = null;
 
     // Setup Listeners
     this.setupListeners();
@@ -77,6 +89,26 @@ export class UIManager {
       });
     }
 
+    const onShare = (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      this.shareLastResult();
+    };
+    const onSaveCard = (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      if (!this.lastResult) return;
+      downloadShareCard(this.lastResult);
+    };
+    for (const id of ['btn-share-win', 'btn-share-fail']) {
+      const btn = document.getElementById(id);
+      if (btn) btn.addEventListener('click', onShare);
+    }
+    for (const id of ['btn-card-win', 'btn-card-fail']) {
+      const btn = document.getElementById(id);
+      if (btn) btn.addEventListener('click', onSaveCard);
+    }
+
     // Mute Button
     if (this.btnMute) {
       this.btnMute.addEventListener('click', (e) => {
@@ -122,7 +154,74 @@ export class UIManager {
     this.btnMute.setAttribute('aria-label', sound.isMuted ? 'Unmute Audio' : 'Mute Audio');
   }
 
-  updateHUD(distance, maxDistance, timeSeconds, collectedCells, totalCells) {
+  setPrelude(best, challenge) {
+    this.best = best;
+    this.challenge = challenge;
+    if (this.bestLine) this.bestLine.textContent = describeBest(best);
+    if (this.challengeLine) {
+      if (challenge) {
+        this.challengeLine.textContent = `LINE TO BEAT · ${describeLine(challenge)}`;
+        this.challengeLine.classList.remove('hidden');
+      } else {
+        this.challengeLine.textContent = '';
+        this.challengeLine.classList.add('hidden');
+      }
+    }
+    if (this.btnStart) {
+      this.btnStart.textContent = challenge ? 'CHASE THE LINE' : 'LAUNCH RUN';
+    }
+  }
+
+  flashSkill(text) {
+    const el = this.skillPopup;
+    if (!el) return;
+    el.textContent = text;
+    el.classList.remove('show');
+    void el.offsetWidth;
+    el.classList.add('show');
+  }
+
+  setStatus(message) {
+    for (const id of ['win-status', 'fail-status']) {
+      const el = document.getElementById(id);
+      const overlay = el && el.closest('.overlay');
+      if (el && overlay && !overlay.classList.contains('hidden')) {
+        el.textContent = message;
+        el.classList.remove('hidden');
+      }
+    }
+  }
+
+  presentResult(result, prefix) {
+    this.lastResult = result;
+    const scoreEl = document.getElementById(`${prefix}-score`);
+    const noteEl = document.getElementById(`${prefix}-note`);
+    const razorEl = document.getElementById(`${prefix}-razors`);
+    const statusEl = document.getElementById(`${prefix}-status`);
+    if (scoreEl) scoreEl.textContent = formatScore(result.score);
+    if (noteEl) noteEl.textContent = resultNote(result);
+    if (razorEl) razorEl.textContent = String(result.razors);
+    if (statusEl) {
+      statusEl.textContent = initialShareStatus(window.location.hostname);
+      statusEl.classList.remove('hidden');
+    }
+  }
+
+  async shareLastResult() {
+    if (!this.lastResult) return;
+    const outcome = await shareRun(this.lastResult);
+    if (outcome.status === 'copy') {
+      const full = `${outcome.text}\n${outcome.url}`;
+      try {
+        await navigator.clipboard.writeText(full);
+        this.setStatus('Copied. Paste it into a post on X.');
+      } catch (e) {
+        this.setStatus(full);
+      }
+    }
+  }
+
+  updateHUD(distance, maxDistance, timeSeconds, collectedCells, totalCells, extras = {}) {
     // Distance
     const distClamped = Math.min(Math.max(0, distance), maxDistance);
     if (this.hudDistance) {
@@ -141,6 +240,29 @@ export class UIManager {
       const secs = (timeSeconds % 60).toFixed(1);
       const padSecs = secs < 10 ? `0${secs}` : secs;
       this.hudTimer.textContent = `${mins < 10 ? '0' : ''}${mins}:${padSecs}`;
+    }
+
+    if (this.hudScore) this.hudScore.textContent = formatScore(extras.score || 0);
+
+    if (this.hudFlow) {
+      const chain = extras.chain || 0;
+      const razors = extras.razors || 0;
+      const label = razors === 1 ? 'RAZOR' : 'RAZORS';
+      this.hudFlow.textContent = `x${chain} · ${razors} ${label}`;
+    }
+
+    if (this.hudRival) {
+      if (extras.rivalScore == null) {
+        this.hudRival.classList.add('hidden');
+      } else {
+        const delta = (extras.score || 0) - extras.rivalScore;
+        const ahead = delta >= 0;
+        this.hudRival.classList.remove('hidden');
+        this.hudRival.classList.toggle('ahead', ahead);
+        this.hudRival.classList.toggle('behind', !ahead);
+        const word = ahead ? 'AHEAD' : 'BEHIND';
+        this.hudRival.textContent = `${word} ${formatScore(Math.abs(delta))} · LINE ${formatScore(extras.rivalScore)}`;
+      }
     }
 
     // Cells icons
@@ -174,15 +296,14 @@ export class UIManager {
     }
   }
 
-  showGameOver(distance, timeSeconds, cellsCount, totalCells) {
+  showGameOver(result) {
     this.hideAllModals();
+    this.presentResult(result, 'fail');
     const statsDist = document.getElementById('fail-dist');
-    const statsTime = document.getElementById('fail-time');
     const statsCells = document.getElementById('fail-cells');
 
-    if (statsDist) statsDist.textContent = `${Math.floor(distance)}m`;
-    if (statsTime) statsTime.textContent = `${timeSeconds.toFixed(1)}s`;
-    if (statsCells) statsCells.textContent = `${cellsCount} / ${totalCells}`;
+    if (statsDist) statsDist.textContent = `${Math.floor(result.distance)}m`;
+    if (statsCells) statsCells.textContent = `${result.cells} / ${result.totalCells}`;
 
     if (this.gameoverOverlay) {
       this.gameoverOverlay.classList.remove('hidden');
@@ -191,28 +312,20 @@ export class UIManager {
     }
   }
 
-  showVictory(timeSeconds, cellsCount, totalCells, distance) {
+  showVictory(result) {
     this.hideAllModals();
+    this.presentResult(result, 'win');
     const statsTime = document.getElementById('win-time');
     const statsCells = document.getElementById('win-cells');
-    const statsDist = document.getElementById('win-dist');
     const statsRank = document.getElementById('win-rank');
 
-    if (statsTime) statsTime.textContent = `${timeSeconds.toFixed(2)}s`;
-    if (statsCells) statsCells.textContent = `${cellsCount} / ${totalCells}`;
-    if (statsDist) statsDist.textContent = `${Math.floor(distance)}m`;
+    if (statsTime) statsTime.textContent = `${result.timeSeconds.toFixed(2)}s`;
+    if (statsCells) statsCells.textContent = `${result.cells} / ${result.totalCells}`;
 
     if (statsRank) {
-      if (cellsCount === 5) {
-        statsRank.textContent = "RANK: S (OVERCHARGED COURIER)";
-        statsRank.className = "rank-badge rank-s";
-      } else if (cellsCount >= 3) {
-        statsRank.textContent = "RANK: A (VETERAN RUNNER)";
-        statsRank.className = "rank-badge rank-a";
-      } else {
-        statsRank.textContent = "RANK: B (SURVIVOR)";
-        statsRank.className = "rank-badge rank-b";
-      }
+      const rankClass = result.rank === 'S+' ? 'sp' : result.rank.toLowerCase();
+      statsRank.textContent = `RANK ${result.rank} · ${result.title}`;
+      statsRank.className = `rank-badge rank-${rankClass}`;
     }
 
     if (this.victoryOverlay) {
@@ -227,5 +340,9 @@ export class UIManager {
     if (this.pauseOverlay) this.pauseOverlay.classList.add('hidden');
     if (this.gameoverOverlay) this.gameoverOverlay.classList.add('hidden');
     if (this.victoryOverlay) this.victoryOverlay.classList.add('hidden');
+    if (this.skillPopup) {
+      this.skillPopup.classList.remove('show');
+      this.skillPopup.textContent = '';
+    }
   }
 }

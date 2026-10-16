@@ -5,6 +5,8 @@ import { Player } from './player.js';
 import { Environment } from './environment.js';
 import { UIManager } from './ui.js';
 import { sound } from './audio.js';
+import { applyLanding, buildResult, classifyMargin, createRun, formatScore, readChallenge, totalScore } from './score.js';
+import { loadBest, saveBest } from './records.js';
 
 export const GAME_STATE = {
   START: 'START',
@@ -22,6 +24,8 @@ export class Game {
     this.runTime = 0;
     this.collectedCellsCount = 0;
     this.totalCellsCount = CONFIG.TOTAL_CELLS;
+    this.run = createRun();
+    this.challenge = readChallenge(typeof window !== 'undefined' ? window.location.search : '');
     this.lastFrameTime = performance.now();
 
     // 1. Scene, Camera, Renderer
@@ -56,6 +60,7 @@ export class Game {
       onJumpDown: () => this.handleJumpDown(),
       onJumpUp: () => this.handleJumpUp()
     });
+    this.ui.setPrelude(loadBest(), this.challenge);
 
     // 3. Setup Listeners
     this.setupInputs();
@@ -73,7 +78,10 @@ export class Game {
   setupInputs() {
     // Keyboard inputs
     window.addEventListener('keydown', (e) => {
+      const tag = e.target && e.target.tagName;
+      const onControl = tag === 'BUTTON' || tag === 'A' || tag === 'INPUT';
       if (e.code === 'Space') {
+        if (onControl) return;
         e.preventDefault();
         if (this.state === GAME_STATE.PLAYING) {
           this.handleJumpDown();
@@ -88,6 +96,7 @@ export class Game {
           this.resumeGame();
         }
       } else if (e.code === 'Enter') {
+        if (onControl) return;
         if (this.state === GAME_STATE.START) {
           sound.init();
           this.startGame();
@@ -195,10 +204,11 @@ export class Game {
     this.state = GAME_STATE.PLAYING;
     this.runTime = 0;
     this.collectedCellsCount = 0;
+    this.run = createRun();
     this.player.reset();
     this.environment.resetCollectibles();
     this.ui.hideAllModals();
-    this.ui.updateHUD(0, CONFIG.FINISH_Z, 0, 0, this.totalCellsCount);
+    this.pushHUD();
     this.lastFrameTime = null;
     sound.resume();
   }
@@ -226,36 +236,84 @@ export class Game {
     if (this.state !== GAME_STATE.PLAYING) return;
     this.state = GAME_STATE.GAMEOVER;
     sound.playGameOver();
-    this.ui.showGameOver(
-      this.player.z,
-      this.runTime,
-      this.collectedCellsCount,
-      this.totalCellsCount
-    );
+    const result = this.finishRun(false);
+    this.pushHUD(result.score);
+    this.ui.showGameOver(result);
   }
 
   onVictory() {
     if (this.state !== GAME_STATE.PLAYING) return;
     this.state = GAME_STATE.VICTORY;
     sound.playVictory();
-    this.ui.showVictory(
-      this.runTime,
-      this.collectedCellsCount,
-      this.totalCellsCount,
-      CONFIG.FINISH_Z
-    );
+    const result = this.finishRun(true);
+    this.pushHUD(result.score);
+    this.ui.showVictory(result);
   }
 
-  onCollectCell(cellId) {
-    this.collectedCellsCount++;
-    sound.playCellPickup(this.collectedCellsCount);
+  onGapLand(gap) {
+    if (this.state !== GAME_STATE.PLAYING) return;
+    const kind = classifyMargin(gap.margin);
+    const before = this.run.landingPoints;
+    this.run = applyLanding(this.run, kind);
+    if (kind === 'razor') {
+      sound.playRazor();
+      this.ui.flashSkill(`RAZOR +${formatScore(this.run.landingPoints - before)}`);
+    }
+    this.pushHUD();
+  }
+
+  liveScore() {
+    return totalScore({
+      distance: this.player.z,
+      cells: this.collectedCellsCount,
+      landingPoints: this.run.landingPoints,
+      victory: false,
+    });
+  }
+
+  hudExtras() {
+    return {
+      score: this.liveScore(),
+      chain: this.run.chain,
+      razors: this.run.razors,
+      rivalScore: this.challenge ? this.challenge.score : null,
+    };
+  }
+
+  pushHUD(scoreOverride) {
+    const extras = this.hudExtras();
+    if (scoreOverride != null) extras.score = scoreOverride;
     this.ui.updateHUD(
       this.player.z,
       CONFIG.FINISH_Z,
       this.runTime,
       this.collectedCellsCount,
-      this.totalCellsCount
+      this.totalCellsCount,
+      extras
     );
+  }
+
+  finishRun(victory) {
+    const prev = loadBest();
+    const result = buildResult({
+      distance: victory ? CONFIG.FINISH_Z : this.player.z,
+      timeSeconds: this.runTime,
+      cells: this.collectedCellsCount,
+      totalCells: this.totalCellsCount,
+      run: this.run,
+      victory,
+      rival: this.challenge,
+      bestScore: prev ? prev.score : null,
+    });
+    saveBest(result);
+    this.ui.setPrelude(loadBest(), this.challenge);
+    return result;
+  }
+
+  onCollectCell(cellId) {
+    this.collectedCellsCount++;
+    sound.playCellPickup(this.collectedCellsCount);
+    this.pushHUD();
   }
 
   updateCamera(dt, instant = false) {
@@ -300,7 +358,7 @@ export class Game {
       this.runTime += dt;
 
       // Update Player Physics
-      this.player.update(dt, PLATFORMS_DATA, () => this.onFall());
+      this.player.update(dt, PLATFORMS_DATA, () => this.onFall(), (gap) => this.onGapLand(gap));
 
       // Update Environment (rain, collectibles bobbing, lightning)
       this.environment.update(dt, this.player, (cellId) => this.onCollectCell(cellId));
@@ -309,13 +367,7 @@ export class Game {
       this.updateCamera(dt);
 
       // Update HUD
-      this.ui.updateHUD(
-        this.player.z,
-        CONFIG.FINISH_Z,
-        this.runTime,
-        this.collectedCellsCount,
-        this.totalCellsCount
-      );
+      this.pushHUD();
 
       // Check Victory Condition
       if (this.player.z >= CONFIG.FINISH_Z) {

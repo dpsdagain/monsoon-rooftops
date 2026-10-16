@@ -160,6 +160,29 @@ class SoundEngine {
     } catch (e) {}
   }
 
+  playRazor() {
+    if (!this.ctx) return;
+    try {
+      this.resume();
+      const t = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(880, t);
+      osc.frequency.exponentialRampToValueAtTime(1320, t + 0.08);
+
+      gain.gain.setValueAtTime(0.12, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+
+      osc.start(t);
+      osc.stop(t + 0.13);
+    } catch (e) {}
+  }
+
   playCellPickup(count) {
     if (!this.ctx) return;
     try {

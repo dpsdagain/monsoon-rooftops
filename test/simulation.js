@@ -1,6 +1,23 @@
+import * as THREE from 'three';
 import { CONFIG } from '../src/constants.js';
 import { PLATFORMS_DATA, CELLS_DATA } from '../src/level.js';
 import { sound } from '../src/audio.js';
+import { Player } from '../src/player.js';
+import { Environment } from '../src/environment.js';
+import {
+  applyLanding,
+  buildResult,
+  buildShareText,
+  classifyMargin,
+  createRun,
+  describeLine,
+  encodeLine,
+  gradeRun,
+  parseLine,
+  readChallenge,
+  totalScore,
+} from '../src/score.js';
+import { challengeUrl, initialShareStatus, xIntentUrl } from '../src/share.js';
 
 console.log("====================================================");
 console.log("   MONSOON ROOFTOPS: GAME LOGIC & PHYSICS TEST SUITE");
@@ -329,6 +346,138 @@ console.log("\n--- Test 8: Audio Engine Suspend & Resume Methods ---");
 {
   assert(typeof sound.pause === 'function', "SoundEngine has pause method for tab blur");
   assert(typeof sound.resume === 'function', "SoundEngine has resume method for tab focus");
+}
+
+// ----------------------------------------------------
+// Test 9: Courier score, ranks, and X challenge links
+// ----------------------------------------------------
+console.log("\n--- Test 9: Courier Score & Challenge Links ---");
+{
+  assert(classifyMargin(CONFIG.RAZOR_MARGIN) === 'razor', "Landing on the lip edge is a razor");
+  assert(classifyMargin(CONFIG.RAZOR_MARGIN + 0.01) === 'steady', "Landing past the gold band is steady");
+  assert(classifyMargin(-0.2) === 'razor', "A lip clipped from the near side is still a razor");
+
+  let run = createRun();
+  run = applyLanding(run, 'razor');
+  run = applyLanding(run, 'razor');
+  assert(run.chain === 2 && run.razors === 2, "Two razor gaps raise flow to x2");
+  assert(run.landingPoints === 700 + 1400, `Razor points scale with flow (${run.landingPoints})`);
+
+  run = applyLanding(run, 'steady');
+  assert(run.steadies === 1 && run.landingPoints === 2100 + 360, "A steady landing pays the smaller flow rate");
+
+  const clear = totalScore({ distance: 1000, cells: 5, landingPoints: 2100, victory: true });
+  assert(clear === 975 * 10 + 5 * 2500 + 2100 + 5000, `Clear score clamps distance at the helipad (${clear})`);
+
+  assert(gradeRun({ victory: true, cells: 5, razors: 8 }).rank === 'S+', "Five cells and 8 razors is S+");
+  assert(gradeRun({ victory: true, cells: 5, razors: 7 }).rank === 'S', "Five cells without 8 razors stays S");
+  assert(gradeRun({ victory: true, cells: 3, razors: 10 }).rank === 'A', "Three cells is rank A");
+  assert(gradeRun({ victory: true, cells: 1, razors: 10 }).rank === 'B', "A thin clear is rank B");
+  assert(gradeRun({ victory: false, cells: 5, razors: 9 }).rank === 'D', "A fall is rank D even with every cell");
+
+  const victory = buildResult({
+    distance: CONFIG.FINISH_Z,
+    timeSeconds: 49,
+    cells: 5,
+    totalCells: 5,
+    run: { chain: 15, razors: 9, steadies: 6, landingPoints: 8000 },
+    victory: true,
+    rival: { score: 20000, cells: 5, razors: 4, rank: 'S' },
+    bestScore: 10000,
+  });
+  assert(victory.rivalBeaten && victory.isNewBest, "Beating a posted line and your best both flag");
+  assert(victory.rank === 'S+', `Nine razors and a full clear grade S+ (${victory.rank})`);
+
+  const text = buildShareText(victory);
+  assert(text.includes('35,250') && text.includes('Cleared Helipad 01') && text.includes('9 razor') && text.includes('Beat this line'), "Share text carries the score, the clear, the razors, and the dare");
+  assert(text.includes('Took the line'), "A beaten rival is named in the post");
+  const oneRazor = buildShareText({ ...victory, razors: 1, rival: null });
+  assert(oneRazor.includes('1 razor landing') && !oneRazor.includes('landings'), "One razor is singular in the post");
+
+  const encoded = encodeLine(victory);
+  assert(parseLine(encoded).rank === 'S+' && parseLine(encoded).score === victory.score, `Line token round-trips (${encoded})`);
+  assert(parseLine('nope') === null && parseLine('12.6.1.S') === null, "Broken or impossible lines are ignored");
+  assert(readChallenge('?line=18420.5.9.SP').rank === 'S+', "A shared URL opens as an S+ line");
+  assert(describeLine(readChallenge('?line=100.2.1.D')).includes('A FALL'), "A posted fall is described as a fall");
+
+  const href = challengeUrl(victory, 'http://localhost:5173/index.html?old=1#top');
+  const reopened = readChallenge(new URL(href).search);
+  assert(reopened.score === victory.score && reopened.razors === 9 && reopened.rank === 'S+', `Challenge URL reopens the same line (${href})`);
+
+  const intent = xIntentUrl('Beat this line', href);
+  assert(intent.startsWith('https://x.com/intent/post?') && intent.includes('url='), "Post opens the X composer with the link");
+  assert(initialShareStatus('localhost').includes('hosted'), "Local play says the link needs a host");
+  assert(!initialShareStatus('rooftops.example.com').includes('hosted'), "A public host does not warn about localhost");
+}
+
+// ----------------------------------------------------
+// Test 10: Razor lip is visible, and jump timing earns it
+// ----------------------------------------------------
+console.log("\n--- Test 10: Razor Lip Placement & Landing Timing ---");
+{
+  const scene = new THREE.Scene();
+  const env = new Environment(scene);
+  const lips = [];
+  scene.traverse((obj) => {
+    if (obj.name === 'razor-lip') lips.push(obj);
+  });
+  assert(lips.length === PLATFORMS_DATA.length, `Every roof has a gold razor lip (${lips.length})`);
+  const firstLip = lips[0];
+  const firstPlat = PLATFORMS_DATA[0];
+  const lipDepth = firstLip.geometry.parameters.depth;
+  assert(Math.abs(lipDepth - CONFIG.RAZOR_MARGIN) < 0.001, `Lip depth matches the score window (${lipDepth})`);
+  const expectedZ = firstPlat.zStart + CONFIG.RAZOR_MARGIN * 0.5;
+  assert(Math.abs(firstLip.position.z - expectedZ) < 0.001, `Lip sits on the leading edge (z ${firstLip.position.z.toFixed(2)})`);
+  assert(firstLip.position.y > firstPlat.topY, "Lip is painted above the roof, not inside the collider");
+  env.dispose?.();
+
+  function runGap(jumpAt) {
+    const gapScene = new THREE.Scene();
+    const player = new Player(gapScene);
+    const platforms = [
+      { id: 0, x: 0, width: 12, zStart: -5, zEnd: 30, topY: 0 },
+      { id: 1, x: 0, width: 12, zStart: 36, zEnd: 90, topY: 0 },
+    ];
+    const gaps = [];
+    let jumped = false;
+    for (let i = 0; i < 500 && player.y > -15; i++) {
+      if (!jumped && player.z >= jumpAt) {
+        player.requestJump();
+        jumped = true;
+      }
+      player.update(1 / 60, platforms, null, (gap) => gaps.push(gap));
+      if (gaps.length > 0) break;
+    }
+    return { jumped, gaps, z: player.z, y: player.y };
+  }
+
+  const early = runGap(23.2);
+  assert(early.jumped && early.gaps.length === 1, `Early jump reaches the next roof (${early.gaps.length} landings, y ${early.y.toFixed(2)})`);
+  if (early.gaps[0]) {
+    const kind = classifyMargin(early.gaps[0].margin);
+    assert(kind === 'razor', `Jumping early cuts the lip (margin ${early.gaps[0].margin.toFixed(2)}m, ${kind})`);
+  }
+
+  const late = runGap(29);
+  assert(late.gaps.length === 1, "Jumping at the edge still clears the gap");
+  if (late.gaps[0]) {
+    const kind = classifyMargin(late.gaps[0].margin);
+    assert(kind === 'steady', `Jumping late lands deep and safe (margin ${late.gaps[0].margin.toFixed(2)}m, ${kind})`);
+  }
+
+  const hopScene = new THREE.Scene();
+  const hopper = new Player(hopScene);
+  const oneRoof = [{ id: 0, x: 0, width: 12, zStart: -5, zEnd: 80, topY: 0 }];
+  const hops = [];
+  let hopped = false;
+  for (let i = 0; i < 400 && hopper.z < 40; i++) {
+    if (!hopped && hopper.z >= 5) {
+      hopper.requestJump();
+      hopped = true;
+    }
+    hopper.update(1 / 60, oneRoof, null, (gap) => hops.push(gap));
+  }
+  assert(hopped && hops.length === 0 && hopper.y > -1, "A hop on the same roof does not farm razor points");
 }
 
 // ----------------------------------------------------
