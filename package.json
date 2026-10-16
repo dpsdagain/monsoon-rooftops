@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node test/simulation.js"
+    "test": "node test/simulation.js",
+    "test:stormline": "node test/stormline.mjs"
   },
   "dependencies": {
     "three": "^0.186.1",

@@ -102,3 +102,10 @@ To run the full Chrome end-to-end browser test with 0 console errors:
 ```powershell
 node test/browser-test.js
 ```
+
+
+## Stormline grappling mode
+
+Stormline is now the default mode. Hold E / GRAPPLE to connect to a crane, release to launch, and catch the moving train. Space jumps; R retries. Your best completed run becomes a local ghost. Open the same address with ?mode=classic to keep playing the original runner.
+
+See STORMLINE.md for controls, scope and validation. Run npm run test:stormline for the new simulation suite.
