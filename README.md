@@ -109,3 +109,11 @@ node test/browser-test.js
 Stormline is now the default mode. Hold E / GRAPPLE to connect to a crane, release to launch, and catch the moving train. Space jumps; R retries. Your best completed run becomes a local ghost. Open the same address with ?mode=classic to keep playing the original runner.
 
 See STORMLINE.md for controls, scope and validation. Run npm run test:stormline for the new simulation suite.
+
+## Public early prototype
+
+Playtest address: https://dpsdagain.github.io/monsoon-rooftops/
+
+The first screen labels the game as an early prototype and explains the automatic run and hold/release controls. The optional feedback dialog asks about control clarity, movement and another level. Its report includes anonymous attempt/retry/completion totals for the current visit. It sends nothing automatically; testers copy the report and return it to the person who invited them. No new tracking or feedback backend is used.
+
+The Pages workflow tests the game, builds it for /monsoon-rooftops/, and deploys pushes to main. Run npm run test:playtest for feedback accounting checks. Prototype layout and report copying were checked at desktop and 390px phone width. Real Android performance remains unmeasured.

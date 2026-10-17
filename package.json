@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "node test/simulation.js",
     "test:stormline": "node test/stormline.mjs",
-    "test:assets": "node test/courier-asset.mjs"
+    "test:assets": "node test/courier-asset.mjs",
+    "test:playtest": "node test/playtest.mjs"
   },
   "dependencies": {
     "three": "^0.186.1",

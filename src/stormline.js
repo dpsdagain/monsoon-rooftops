@@ -3,6 +3,8 @@ import { STEP, ANCHORS, ROOFS, CELLS, createState, begin, jump, tether, simulate
 import './stormline.css';
 import { buildStormCity, createCourier, animateCourier, batchStaticMeshes } from './stormline-art.js';
 import { loadCourierAsset, installCourierAsset } from './stormline-model.js';
+import { PlaytestSession } from './playtest-data.mjs';
+import { attachPlaytestFeedback } from './playtest.js';
 
 const C = { sky: 0x1b3944, fog: 0x315454, roof: 0x66817c, wall: 0x30494b, dark: 0x172f35, acid: 0xd3ff7a, orange: 0xff9463, paper: 0xfaf6e8, crane: 0xd5a058 };
 const KEY = 'monsoon-stormline-best-v1';
@@ -53,14 +55,14 @@ class Audio {
 export class StormlineGame {
   constructor() {
     document.body.classList.add('stormline-mode');
-    document.title = 'Stormline — Monsoon Rooftops';
-    document.querySelector('meta[name="description"]')?.setAttribute('content','Jump. Hold the line. Release into the monsoon. A playable rooftop grapple run through Neo-Mumbai.');
+    document.title = 'Stormline — Early Prototype';
+    document.querySelector('meta[name="description"]')?.setAttribute('content','An early rooftop grappling prototype. Try one short route through monsoon Mumbai and help improve the movement.');
     this.root = document.createElement('div'); this.root.id = 'stormline-app';
     this.polished = new URLSearchParams(location.search).get('art') !== 'plain';
     this.root.dataset.art = this.polished ? 'city' : 'plain';
     this.root.innerHTML = `
       <div id="stormline-stage"></div><div class="sl-grain"></div>
-      <header class="sl-top"><div class="sl-brand"><div class="sl-mark">↗</div><div class="sl-wordmark">MONSOON ROOFTOPS<small>STORMLINE / NEO-MUMBAI 2088</small></div></div>
+      <header class="sl-top"><div class="sl-brand"><div class="sl-mark">↗</div><div class="sl-wordmark">MONSOON ROOFTOPS<small>STORMLINE / NEO-MUMBAI 2088</small><span class="sl-prototype">EARLY PROTOTYPE · PLAYTEST</span></div></div>
       <div class="sl-tools"><button class="sl-tool" id="sl-sound" aria-label="Toggle sound">SOUND ON</button><button class="sl-tool" id="sl-pause" aria-label="Pause game">Ⅱ</button><button class="sl-tool" id="sl-retry" aria-label="Restart run">↻</button></div></header>
       <div class="sl-route"><div class="sl-route-head"><span>COLABA → THE LAST TRAIN</span><span id="sl-progress-label">DELIVERY 01</span></div><div class="sl-route-track"><div class="sl-route-fill" id="sl-progress"></div></div><div class="sl-route-dots"><i></i><i></i><i></i><i></i><i></i></div></div>
       <div class="sl-readout"><div class="sl-kicker" id="sl-phase-label">A CITY BETWEEN STORMS</div><div class="sl-objective" id="sl-objective">Make the last connection.</div><div class="sl-hint" id="sl-hint">Four lines. One delivery. Find your flow.</div></div>
@@ -72,6 +74,7 @@ export class StormlineGame {
     document.body.replaceChildren(this.root);
     this.ui = id => document.getElementById(`sl-${id}`);
     this.s = createState(); this.best = safeRead(); this.frames = []; this.lastSample = 0;
+    this.playtest = new PlaytestSession();
     this.audio = new Audio(); this.toastTime = 0; this.accumulator = 0; this.previous = null; this.visualTime = 0;
     this.landing = 0; this.gripPosition = new THREE.Vector3();
     this.reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -97,7 +100,9 @@ export class StormlineGame {
     } else this.root.dataset.courierModel='procedural';
     this.rope = this.bar(new THREE.Vector3(),new THREE.Vector3(0,1,0),.065,glow(C.acid)); this.rope.visible = false;
     this.camera.position.set(34,29,-31); this.look = new THREE.Vector3(0,17,37); this.camera.lookAt(this.look);
-    this.setupInput(); this.showMenu('ready'); this.updateUI(); this.updateSoundButton();
+    this.setupInput();
+    this.feedback=attachPlaytestFeedback({root:this.root,session:this.playtest,getState:()=>this.s,onOpen:()=>this.pause()});
+    this.showMenu('ready'); this.updateUI(); this.updateSoundButton();
     this.frame = this.frame.bind(this); this.frameID = requestAnimationFrame(this.frame);
   }
   box(parent,w,h,d,x,y,z,material) {
@@ -282,6 +287,7 @@ export class StormlineGame {
     const canvas=this.renderer.domElement;canvas.addEventListener('pointerdown',e=>{if(e.button===0&&this.s.phase==='playing'){e.preventDefault();tether(this.s,true);canvas.setPointerCapture?.(e.pointerId);}});
     canvas.addEventListener('contextmenu',e=>e.preventDefault());
     window.addEventListener('keydown',e=>{
+      if(this.feedback?.dialog.open)return;
       if(['Space','KeyE','ArrowUp'].includes(e.code))e.preventDefault();
       if(e.repeat)return;
       if(e.code==='KeyR'){this.start();return;}
@@ -300,6 +306,7 @@ export class StormlineGame {
   }
   updateSoundButton(){this.ui('sound').textContent=this.audio.muted?'SOUND OFF':'SOUND ON';this.ui('sound').setAttribute('aria-pressed',String(!this.audio.muted));}
   start() {
+    this.playtest.begin(this.s);
     this.audio.init();this.s=createState();begin(this.s);this.frames=[];this.lastSample=0;this.accumulator=0;this.previous=null;this.landing=0;this.ui('overlay').classList.add('hidden');this.ui('toast').classList.remove('show');this.toastTime=0;
     this.camera.position.set(this.polished?17:26,this.polished?22:27,this.polished?-25:-35);this.look.set(0,this.polished?12:15,this.polished?18:22);this.ghost.visible=!!this.best?.frames.length;
     this.ui('pause').setAttribute('aria-label','Pause game');this.updateUI();
@@ -309,12 +316,15 @@ export class StormlineGame {
   showMenu(kind) {
     this.ui('overlay').classList.remove('hidden');this.root.classList.add('sl-menu-open');
     const ready=kind==='ready',paused=kind==='paused',won=kind==='won';
-    const kicker=ready?'01 / COLABA AFTER THE RAIN':paused?'TAKE A BREATH':won?'DELIVERY COMPLETE':'THE CITY GETS ANOTHER CHANCE';
+    const kicker=ready?'EARLY PROTOTYPE / FIRST PLAYTEST':paused?'TAKE A BREATH':won?'DELIVERY COMPLETE':'THE CITY GETS ANOTHER CHANCE';
     const title=ready?'STORM<br><em>LINE.</em>':paused?'HOLD<br><em>ON.</em>':won?'LINE<br><em>MADE.</em>':'ONE<br><em>MORE.</em>';
-    const description=ready?'The streets are underwater. The last train is leaving. Carry the power cell across the city, one swing at a time.':paused?'Your run is right where you left it. Reconnect when you’re ready.':won?'You caught the last train. Chase a cleaner line, collect the cells, or take the narrow sky deck.':this.s.deathReason;
+    const description=ready?'One short route through the monsoon. Your courier runs automatically. Hold E / GRAPPLE near an edge, then release after passing the crane. Catch the last train.':paused?'Your run is right where you left it. Reconnect when you’re ready.':won?'You caught the last train. Would you try another level? A quick playtest report helps shape what comes next.':this.s.deathReason;
     this.ui('panel').innerHTML=`<div class="sl-eyebrow">${kicker}</div><h1 class="sl-title">${title}</h1><div class="sl-subtitle">MONSOON ROOFTOPS / NEO-MUMBAI</div><p class="sl-desc">${description}</p>${!ready&&!paused?`<div class="sl-score-row"><div><b>${fmt(score(this.s))}</b><span>SCORE</span></div><div><b>${clock(this.s.t)}</b><span>RUN TIME</span></div><div><b>${this.s.cells.length}/3</b><span>CELLS</span></div></div>`:''}<button class="sl-primary" id="sl-launch">${paused?'RESUME RUN':ready?'TAKE THE LINE':'RUN IT AGAIN'} <span>↗</span></button>${paused?'<button class="sl-secondary" id="sl-menu-retry">RESTART</button>':''}<div class="sl-legend"><div><b>01 / JUMP</b>Space or left button</div><div><b>02 / GRAPPLE</b>Hold E or right button<br>Release to launch</div></div><div class="sl-ghost-note">${this.best?`PERSONAL BEST ${fmt(this.best.score)} · YOUR GHOST IS READY`:ready?'Four crossings. One moving train. Instant retries.':won?'Your best run is saved locally as a ghost.':''}</div><div class="sl-build">MOVEMENT PROTOTYPE 01 · <a href="?mode=classic">PLAY CLASSIC RUNNER ↗</a></div>`;
     this.ui('launch').onclick=()=>paused?this.togglePause():this.start();
     this.ui('menu-retry')?.addEventListener('click',()=>this.start());
+    const feedbackButton=document.createElement('button');feedbackButton.className='sl-feedback-link';feedbackButton.textContent='Playtest feedback · 3 quick questions';feedbackButton.onclick=()=>this.feedback.open();
+    this.ui('panel').insertBefore(feedbackButton,this.ui('panel').querySelector('.sl-ghost-note'));
+    this.ui('panel').querySelector('.sl-legend').innerHTML='<div><b>01 / JUMP</b>Space / on-screen JUMP</div><div><b>02 / GRAPPLE</b>Hold E / on-screen GRAPPLE<br>Release after the crane</div>';
     this.ui('pause').setAttribute('aria-label',paused?'Resume game':'Pause game');
   }
   toast(title,sub='') { this.ui('toast-title').textContent=title;this.ui('toast-sub').textContent=sub;this.ui('toast').classList.add('show');this.toastTime=1.5; }
@@ -327,6 +337,7 @@ export class StormlineGame {
       if(e.type==='land'){this.landing=1;this.art?.land(this.s.x,this.s.y,this.s.z);}
       if(e.type==='cell')this.toast('POWER SECURED',`${this.s.cells.length} / 3 CELLS`);
       if(e.type==='won'||e.type==='lost') {
+        this.playtest.finish(this.s);
         if(e.type==='won'&&(!this.best||score(this.s)>this.best.score)) {
           this.best={score:score(this.s),time:this.s.t,frames:this.frames};try{localStorage.setItem(KEY,JSON.stringify(this.best));}catch{}
         }
